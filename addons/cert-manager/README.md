@@ -9,9 +9,7 @@
 4. **AWS IAM 자격 증명**: Route 53 DNS 설정 변경 권한이 있는 AWS 계정 정보 (Access Key ID, Secret Access Key)
 
 ## 목차
-- [cert-manager 설치 및 Route 53 DNS01 인증 설정 가이드 (Helm)](#cert-manager-설치-및-route-53-dns01-인증-설정-가이드-helm)
-  - [사전 조건](#사전-조건)
-  - [목차](#목차)
+
   - [1. Cert-Manager 설치 준비](#1-cert-manager-설치-준비)
   - [2. Cert-Manager 설치](#2-cert-manager-설치)
   - [3. AWS Route 53 정보 등록](#3-aws-route-53-정보-등록)
