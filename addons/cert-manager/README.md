@@ -9,10 +9,11 @@
 4. **AWS IAM 자격 증명**: Route 53 DNS 설정 변경 권한이 있는 AWS 계정 정보 (Access Key ID, Secret Access Key)
 
 ## 목차
-
   - [1. Cert-Manager 설치 준비](#1-cert-manager-설치-준비)
   - [2. Cert-Manager 설치](#2-cert-manager-설치)
   - [3. AWS Route 53 정보 등록](#3-aws-route-53-정보-등록)
+    - [3.1 환경 변수 설정](#31-환경-변수-설정)
+    - [3.2 Kubernetes 시크릿 생성](#32-kubernetes-시크릿-생성)
   - [4. 인증서 발급 기관 설정](#4-인증서-발급-기관-설정)
   - [5. 인증서 발급 요청](#5-인증서-발급-요청)
   - [6. 외부 접속 설정](#6-외부-접속-설정)
@@ -20,7 +21,6 @@
   - [8. 브라우저에서 도메인으로 접근](#8-브라우저에서-도메인으로-접근)
   - [참고 사항](#참고-사항)
   - [추가 정보](#추가-정보)
-
 
 ## 1. Cert-Manager 설치 준비
 
@@ -44,13 +44,34 @@ helm install cert-manager jetstack/cert-manager \
 
 ## 3. AWS Route 53 정보 등록
 
-Route 53에 접근하기 위한 AWS 계정 정보를 Kubernetes에 안전하게 저장합니다.
+### 3.1 환경 변수 설정
+
+AWS 자격 증명을 환경 변수로 설정합니다. `~/.aws/credentials` 파일에서 정보를 가져와 환경 변수로 설정하는 스크립트를 사용합니다.
+
+다음 스크립트를 `set-aws-env.sh` 파일로 저장합니다:
+
+```bash
+#!/bin/bash
+
+export AWS_ACCESS_KEY_ID=$(awk '/aws_access_key_id/ {print $3}' ~/.aws/credentials)
+export AWS_SECRET_ACCESS_KEY=$(awk '/aws_secret_access_key/ {print $3}' ~/.aws/credentials)
+```
+
+스크립트를 실행하여 환경 변수를 설정합니다.
+
+```bash
+source set-aws-env.sh
+```
+
+### 3.2 Kubernetes 시크릿 생성
+
+환경 변수에서 AWS 자격 증명을 가져와 Kubernetes 시크릿으로 생성합니다.
 
 ```bash
 kubectl create secret generic route53-credentials-secret \
   --namespace cert-manager \
-  --from-literal=aws-access-key-id=<YOUR_ACCESS_KEY_ID> \
-  --from-literal=aws-secret-access-key=<YOUR_SECRET_ACCESS_KEY>
+  --from-literal=aws-access-key-id=$AWS_ACCESS_KEY_ID \
+  --from-literal=aws-secret-access-key=$AWS_SECRET_ACCESS_KEY
 ```
 
 ## 4. 인증서 발급 기관 설정
@@ -71,8 +92,8 @@ spec:
     solvers:
     - dns01:
         route53:
-          region: <YOUR_AWS_REGION>
-          hostedZoneID: <YOUR_HOSTED_ZONE_ID>
+          region: ap-northeast-2 #<YOUR_AWS_REGION>
+          hostedZoneID: #<YOUR_HOSTED_ZONE_ID>
           accessKeyIDSecretRef:
             name: route53-credentials-secret
             key: aws-access-key-id
@@ -177,5 +198,3 @@ kubectl create secret tls my-tls-secret --key tls.key --cert tls.crt -n <your-na
 ```
 
 이 `README.md` 파일을 통해 Cert-Manager 설치 및 인증서 발급 과정을 명확하게 안내할 수 있습니다. 필요한 내용을 포함하여 간결하게 작성했습니다. 이 파일을 Cert-Manager 폴더에 추가하여 사용하면 됩니다.
-
-[def]: #사전-조건
