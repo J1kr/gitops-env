@@ -1,0 +1,124 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: istio
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: https://github.com/virnect-squars/helm-charts
+        revision: HEAD
+        files:
+          # - path: "resources/addon/env/virnect-eks-kr.yaml"
+          # - path: "resources/addon/env/virnect-eks-eu.yaml"
+          - path: "resources/addon/env/virnect-eks-mgmt-kr.yaml"          
+  template:
+    metadata:
+      name: "istio-{{cluster}}" # only management cluster
+      labels:
+        app.kubernetes.io/instance: "addons-docker-desktop"
+        squars.io/cluster: "{{cluster}}"
+        squars.io/group: "addons"
+        squars.io/addon: istio
+    spec:
+      project: squars-addon
+      destination:
+        name: "{{cluster}}"
+        namespace: istio-system
+      sources:
+        # Cluster 초기 배포에만 주석해제 
+        # - repoURL: https://istio-release.storage.googleapis.com/charts
+        #   targetRevision: "1.17.2"
+        #   chart: base
+        #   helm:
+        #     values: |-
+        #       name: istio-base      
+        - repoURL: https://istio-release.storage.googleapis.com/charts
+          targetRevision: "1.17.2"
+          chart: istiod
+          helm:
+            values: |-           
+              name: istio-istiod
+              pilot:
+                autoscaleEnabled: true
+                autoscaleMin: 2
+                autoscaleMax: 5
+                replicaCount: 2               
+              meshConfig:
+                accessLogFile: /dev/stdout
+                accessLogFormat: |
+                  [%START_TIME%] "%REQ(:METHOD)% %REQ(X-ENVOY-ORIGINAL-PATH?:PATH)% %PROTOCOL%" %RESPONSE_CODE% %RESPONSE_FLAGS% %RESPONSE_CODE_DETAILS% %CONNECTION_TERMINATION_DETAILS% "%UPSTREAM_TRANSPORT_FAILURE_REASON%" %BYTES_RECEIVED% %BYTES_SENT% %DURATION% %RESP(X-ENVOY-UPSTREAM-SERVICE-TIME)% "%REQ(X-FORWARDED-FOR)%" "%REQ(USER-AGENT)%" "%REQ(X-REQUEST-ID)%" "%REQ(:AUTHORITY)%" "%UPSTREAM_HOST%" %UPSTREAM_CLUSTER% %UPSTREAM_LOCAL_ADDRESS% %DOWNSTREAM_LOCAL_ADDRESS% %DOWNSTREAM_REMOTE_ADDRESS% %REQUESTED_SERVER_NAME% %ROUTE_NAME% traceID=%REQ(x-b3-traceid)%
+                defaultConfig:
+                  tracing:
+                    sampling: 100
+                    # max_path_tag_length: 99999
+                    # zipkin:
+                    #   address: otlp-collector.addon-tempo.svc:9411
+                  gatewayTopology:
+                    numTrustedProxies: 1
+                extensionProviders:
+                - name: otel
+                  envoyOtelAls:
+                    service: otlp-collector.addon-tempo.svc.cluster.local
+                    port: 4317
+                
+                defaultProviders:
+                  accessLogging:
+                    - envoy
+                    - otel
+
+        - repoURL: https://istio-release.storage.googleapis.com/charts
+          targetRevision: "1.17.2"
+          chart: gateway
+          helm:
+            values: |-
+              name: istio-ingressgateway
+              service:
+                type: "{{istio.ingressgateway.service.type}}"
+                ports:
+                - name: status-port
+                  port: 15021
+                  protocol: TCP
+                  targetPort: 15021
+                  nodePort: {{istio.ingressgateway.service.status-port.nodeport}}
+                - name: http2
+                  port: 80
+                  protocol: TCP
+                  targetPort: 80
+                - name: https
+                  port: 443
+                  protocol: TCP
+                  targetPort: 443
+              
+        - repoURL: https://istio-release.storage.googleapis.com/charts
+          targetRevision: "1.17.2"
+          chart: gateway
+          helm:
+            values: |-
+              name: istio-ext-ingressgateway
+              service:
+                type: "{{istio.ext.ingressgateway.service.type}}"
+                ports:
+                - name: status-port
+                  port: 15021
+                  protocol: TCP
+                  targetPort: 15021
+                  nodePort: {{istio.ext.ingressgateway.service.status-port.nodeport}}
+                - name: http2
+                  port: 80
+                  protocol: TCP
+                  targetPort: 80
+                - name: https
+                  port: 443
+                  protocol: TCP
+                  targetPort: 443                
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - PruneLast=true
+          - ApplyOutOfSyncOnly=true
+          - PruneLast=true
+          - ServerSideApply=true
